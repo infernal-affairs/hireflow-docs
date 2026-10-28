@@ -1,0 +1,13 @@
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Local secrets
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.log
