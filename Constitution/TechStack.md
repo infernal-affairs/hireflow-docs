@@ -1,7 +1,7 @@
 # HireFlow Tech Stack
 
 > 状态：基线（v1.0）  
-> 最后更新：2026-10-28  
+> 最后更新：2026-10-29  
 > 维护规则：技术变更必须先评估影响，确认后同步更新本文和 `DECISIONS.md`。
 
 ## 技术基线
@@ -29,8 +29,14 @@
 - 依赖版本在初始化时锁定，提交 `pom.xml`、`package.json` 和 `package-lock.json`。
 - 数据库账号、密码和 JWT 密钥通过环境变量配置，不提交真实密钥。
 - 使用 `schema.sql` 和 `data.sql` 手动初始化数据库，不使用自动建表。
+- 当前基础表由 `users`、`candidate_profiles`、`companies` 起步；后续按业务依赖顺序扩展。
+- MySQL 账号和密码由学习者本人管理；仓库和文档不记录真实凭据。
 - 使用本地 MySQL 和本机前后端进程开发，不安装 Docker。
+- 使用 Controller → Service → Mapper 的经典分层；Controller 不直接调用 Mapper，事务放在 Service。
+- Entity、DTO、VO 分离：Entity 映射数据库，DTO 接收请求，VO 返回前端。
 - 接口统一返回 `{ code, message, data }`，HTTP 状态码采用标准映射。
+- 业务成功码为 `0`；默认成功消息为 `success`；无业务数据时 `data` 为 `null`。
+- `ApiResponse` 使用普通 Java class，字段不可变；通过静态工厂方法创建成功和失败响应。
 - 分页参数从 1 开始，默认每页 10 条，最大 50 条。
 - JWT 有效期 2 小时，前端保存在 `localStorage`，请求使用 `Authorization: Bearer`。
 - 前端使用 Axios 拦截器统一处理 401 跳转和其他错误提示。
@@ -43,7 +49,7 @@
 
 ## 环境与降级规则
 
-当前机器已安装 Maven、Node.js、npm、MySQL 8.4 和 OpenJDK 21，但 MySQL 服务需要启动，`gh` 尚未安装。
+当前机器已安装 Maven、Node.js、npm、MySQL 8.4、OpenJDK 21 和 GitHub CLI；MySQL 账号密码由学习者本人管理。
 
 如果环境准备严重阻塞：
 
