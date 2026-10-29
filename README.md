@@ -9,3 +9,4 @@ Project constitution, API contracts, learning notes, and interview preparation f
 - `api/`: API contracts and error-code references
 - `notes/`: module-level learning notes
 - `interview/`: demo scripts and interview talking points
+- `guides/`: reusable design and development playbooks
