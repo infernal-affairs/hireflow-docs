@@ -266,7 +266,9 @@ CURRENT_TIMESTAMP(3)
 
 ## 八、相关提交
 
-待本轮收尾后补充。
+- backend：`ae40d39`，加入 M1 核心表与 `ApiResponse`。
+- docs：`9038bec`，记录 M1 共识与学习笔记。
+- frontend：本轮无代码变更。
 
 ## 九、代码实现补充记录
 
