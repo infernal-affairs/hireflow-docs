@@ -536,7 +536,289 @@ applications.bio
 OFFERED 和 REJECTED 是终态
 ```
 
-## 十六、设计时常见误区
+## 十六、完整分析示例：新增“投递”功能时如何推导表
+
+假设需求是：
+
+> 求职者可以查看职位，选择职位后提交一次投递；招聘方可以查看投递并推进状态。
+
+不要直接写 `CREATE TABLE applications`，先按下面的顺序分析。
+
+### 第一步：写清业务闭环
+
+```text
+求职者浏览上架职位
+→ 选择职位并提交投递
+→ 招聘方查看该职位的投递
+→ 招聘方将状态推进为面试中、已录用或已拒绝
+→ 求职者查看自己的投递进度
+```
+
+需要回答的业务问题：
+
+- 谁能投递？`CANDIDATE`
+- 能投递什么职位？`ONLINE` 职位
+- 同一人能否重复投递同一职位？不能
+- 招聘方能否处理所有投递？只能处理自己发布职位下的投递
+- 职位下架后投递是否保留？保留
+- 状态是否允许回退？不允许，终态不可回退
+
+### 第二步：提取实体和关系
+
+```text
+职位 jobs
+用户 users
+投递 applications
+```
+
+关系：
+
+```text
+职位 1:N 投递
+求职者 1:N 投递
+同一求职者对同一职位最多一条投递
+```
+
+判断依据：
+
+- 一个职位可以被多个求职者投递：一对多
+- 一个求职者可以投递多个职位：一对多
+- 两者交叉后，在投递表上形成“职位 + 求职者”的业务唯一性
+
+### 第三步：确定投递表需要的字段
+
+| 字段 | 作用 | 是否必填 | 约束判断 |
+| --- | --- | --- | --- |
+| `id` | 投递记录主键 | 是 | 自增主键 |
+| `job_id` | 投递的职位 | 是 | 外键引用 `jobs.id` |
+| `candidate_id` | 投递的求职者 | 是 | 外键引用 `users.id` |
+| `candidate_name` | 投递时姓名快照 | 是 | 历史快照，不随用户改名变化 |
+| `candidate_email` | 投递时邮箱快照 | 是 | 历史快照 |
+| `skills` | 投递时技能快照 | 是 | 历史快照 |
+| `bio` | 投递时简介快照 | 是 | 历史快照 |
+| `cover_note` | 求职说明 | 否 | 可选，限制长度 |
+| `status` | 当前处理状态 | 是 | 初始 `PENDING`，限制合法状态 |
+| `created_at` | 投递时间 | 是 | 默认当前时间 |
+| `updated_at` | 最后更新时间 | 是 | 自动更新时间 |
+
+### 第四步：判断哪些字段是外键
+
+```text
+applications.job_id        → jobs.id
+applications.candidate_id  → users.id
+```
+
+外键字段类型必须与父表主键一致：
+
+```text
+BIGINT UNSIGNED
+```
+
+外键是否唯一：
+
+- `job_id` 不唯一：一个职位可以有多条投递
+- `candidate_id` 不唯一：一个求职者可以投递多个职位
+
+所以不能分别给它们加 `UNIQUE`。
+
+### 第五步：表达重复投递限制
+
+业务规则是：
+
+> 同一求职者对同一职位终身只能投递一次。
+
+这不是单字段唯一，而是联合唯一：
+
+```text
+UNIQUE (job_id, candidate_id)
+```
+
+含义：
+
+```text
+同一条 job_id + 同一条 candidate_id 只能出现一次
+```
+
+如果只给 `job_id` 加唯一，就变成“一个职位只能有一条投递”；
+如果只给 `candidate_id` 加唯一，就变成“一个求职者只能投递一个职位”。
+
+两者都不符合业务。
+
+### 第六步：判断哪些规则数据库管不了
+
+数据库可以保证：
+
+- `job_id` 必须存在
+- `candidate_id` 必须存在
+- 同一职位和同一求职者不能重复
+
+数据库不能直接保证：
+
+- 当前用户角色是 `CANDIDATE`
+- 当前用户已完成姓名、技能和简介
+- 职位当前是 `ONLINE`
+- 招聘方只能处理自己发布的职位
+- 状态流转不能从终态回退
+
+这些必须在 Service 层校验：
+
+```text
+Controller 获取当前用户
+→ Service 校验角色和资料
+→ Mapper 查询职位状态
+→ Service 校验职位是否上架
+→ Mapper 插入投递
+```
+
+### 第七步：判断历史快照
+
+用户资料以后可能修改，但历史投递不能变化。
+
+因此投递表除了 `candidate_id`，还要保存投递当时的：
+
+```text
+candidate_name
+candidate_email
+skills
+bio
+```
+
+外键负责追溯当前用户，快照负责保留历史事实。
+
+### 第八步：判断状态和流转
+
+状态字段可以是：
+
+```text
+PENDING
+INTERVIEWING
+OFFERED
+REJECTED
+```
+
+初始状态：
+
+```text
+PENDING
+```
+
+允许流转：
+
+```text
+PENDING → INTERVIEWING
+INTERVIEWING → OFFERED
+PENDING/INTERVIEWING → REJECTED
+```
+
+终态：
+
+```text
+OFFERED
+REJECTED
+```
+
+数据库可以用 `CHECK` 限制状态取值，但复杂流转规则应在 Service 层判断，不能只靠一个 `CHECK` 表达所有路径。
+
+### 第九步：判断删除策略
+
+职位不物理删除，只下架。
+
+投递永久保留。
+
+因此外键使用：
+
+```sql
+ON DELETE RESTRICT
+ON UPDATE RESTRICT
+```
+
+不采用 `CASCADE`，避免删除职位时误删历史投递。
+
+### 第十步：判断索引
+
+根据查询场景：
+
+```text
+招聘方按职位查看投递列表
+→ 需要 job_id 索引
+
+求职者查看自己的投递
+→ 需要 candidate_id 索引
+
+按职位和状态筛选
+→ 可能需要 (job_id, status) 联合索引
+```
+
+索引来自真实查询，不因为“字段像外键”就盲目创建重复索引。
+
+### 第十一步：确定建表顺序
+
+`applications` 依赖：
+
+```text
+jobs
+users
+```
+
+因此必须先创建：
+
+```text
+users
+→ companies
+→ jobs
+→ applications
+```
+
+不能先创建投递表，否则外键引用的父表不存在。
+
+### 第十二步：形成设计结论
+
+最终表的核心结构应为：
+
+```text
+applications
+├── id                 自增主键
+├── job_id             外键 → jobs.id
+├── candidate_id       外键 → users.id
+├── candidate_name     投递时姓名快照
+├── candidate_email    投递时邮箱快照
+├── skills             投递时技能快照
+├── bio                投递时简介快照
+├── cover_note         可选求职说明
+├── status             初始 PENDING
+├── created_at
+└── updated_at
+```
+
+关键约束：
+
+```text
+PRIMARY KEY (id)
+UNIQUE (job_id, candidate_id)
+FOREIGN KEY (job_id) REFERENCES jobs(id)
+FOREIGN KEY (candidate_id) REFERENCES users(id)
+CHECK (status IN (...))
+```
+
+### 这个示例体现了什么方法论
+
+```text
+业务闭环
+→ 实体和关系
+→ 字段
+→ 外键和基数
+→ 业务唯一性
+→ 历史快照
+→ 状态
+→ 删除策略
+→ 索引
+→ 建表顺序
+→ 验证
+```
+
+不要从“我想加什么字段”开始，而要从“业务需要保证什么事实”开始。
+
+## 十七、设计时常见误区
 
 ### 误区 1：一个页面一张表
 
@@ -566,7 +848,7 @@ OFFERED 和 REJECTED 是终态
 
 可能误删历史数据。涉及业务审计和历史记录时优先 `RESTRICT` 或状态字段。
 
-## 十七、面试表达模板
+## 十八、面试表达模板
 
 可以按下面顺序讲数据库设计：
 
@@ -578,7 +860,7 @@ OFFERED 和 REJECTED 是终态
 6. 说明状态、快照和历史保留策略。
 7. 说明哪些规则由数据库保证，哪些必须由 Service 保证。
 
-## 十八、最小检查清单
+## 十九、最小检查清单
 
 - [ ] 核心业务闭环是否清楚
 - [ ] 每个实体是否必要

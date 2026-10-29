@@ -10,3 +10,4 @@ Project constitution, API contracts, learning notes, and interview preparation f
 - `notes/`: module-level learning notes
 - `interview/`: demo scripts and interview talking points
 - `guides/`: reusable design and development playbooks
+- `security/`: development environment security checklists
