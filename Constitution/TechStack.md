@@ -15,7 +15,7 @@
 | 鉴权 | JWT + Spring MVC Interceptor + BCrypt | 不引入 Spring Security 过滤器链 |
 | 持久层 | MyBatis-Plus 3.5.x | 基础 CRUD，关键查询手写 SQL |
 | 数据库 | MySQL 8.4 | 本地开发库 `hireflow`，测试库 `hireflow_test` |
-| 接口测试 | JUnit 5 + MockMvc | 使用独立 MySQL 测试库 |
+| 接口测试 | JUnit 5 + MockMvc（暂缓） | 工具保留；当前开发阶段不新增自动化测试 |
 | 前端 | Vue 3 + TypeScript + Vite | 页面、路由和组件开发 |
 | UI | Element Plus | 表单、表格、分页、弹窗和状态提示 |
 | 前端状态 | Pinia + Vue Router | 登录状态、角色路由和页面切换 |
