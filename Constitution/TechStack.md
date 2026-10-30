@@ -1,7 +1,7 @@
 # HireFlow Tech Stack
 
 > 状态：基线（v1.0）  
-> 最后更新：2026-10-29  
+> 最后更新：2026-10-30  
 > 维护规则：技术变更必须先评估影响，确认后同步更新本文和 `DECISIONS.md`。
 
 ## 技术基线
@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | 语言 | Java 21 LTS（Homebrew Temurin） | 后端主语言；本机已安装 `openjdk@21` |
 | 构建 | Maven 3.9.x | 后端依赖和生命周期管理 |
+| Lombok | 由 Spring Boot 3.4.5 管理（当前 1.18.38） | 编译期生成 getter 和构造方法；减少纯数据类样板代码 |
 | 后端框架 | Spring Boot 3.4.x | REST API、配置和测试基础 |
 | Web | Spring MVC + Bean Validation | 控制器、参数校验和异常处理 |
 | 鉴权 | JWT + Spring MVC Interceptor + BCrypt | 不引入 Spring Security 过滤器链 |
@@ -36,7 +37,9 @@
 - Entity、DTO、VO 分离：Entity 映射数据库，DTO 接收请求，VO 返回前端。
 - 接口统一返回 `{ code, message, data }`，HTTP 状态码采用标准映射。
 - 业务成功码为 `0`；默认成功消息为 `success`；无业务数据时 `data` 为 `null`。
-- `ApiResponse` 使用普通 Java class，字段不可变；通过静态工厂方法创建成功和失败响应。
+- `ApiResponse` 使用 Lombok `@Getter` 和 `@AllArgsConstructor`，字段不可变；静态工厂方法仍手写。
+- `ErrorCode` 使用 Lombok `@Getter`，但保留显式构造方法，确保枚举项与字段绑定关系可见。
+- Lombok 仅用于纯数据承载和明确的样板代码；核心业务规则、状态流转和异常处理逻辑必须显式编写。
 - 分页参数从 1 开始，默认每页 10 条，最大 50 条。
 - JWT 有效期 2 小时，前端保存在 `localStorage`，请求使用 `Authorization: Bearer`。
 - 前端使用 Axios 拦截器统一处理 401 跳转和其他错误提示。

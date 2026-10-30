@@ -79,9 +79,9 @@
 
 当前实现要点：
 
-- 使用普通 Java class，暂不使用 record 或 Lombok。
+- 使用 Lombok `@Getter` 和 `@AllArgsConstructor` 生成 getter 和全参构造方法。
 - 字段使用 `private final`，创建后不可修改。
-- 提供 getter，供 Jackson 序列化和调用方读取。
+- 通过 Lombok 生成 getter，供 Jackson 序列化和调用方读取。
 - 成功业务码统一为 `0`。
 - 默认成功消息为 `"success"`。
 - 提供带数据和无数据两个成功工厂方法。
@@ -285,7 +285,28 @@ CURRENT_TIMESTAMP(3)
 ### 尚未完成
 
 - `failure` 静态工厂方法。
-- `ErrorCode` 错误码设计。
+- `ErrorCode` 错误码设计（已完成）。
 - 全局异常处理。
 - 第一个返回统一响应的 Controller 手工验证。
 
+
+
+## 十、Lombok 对比结论
+
+- 普通 Java class 的构造方法和 getter 全部可见，但样板代码较多。
+- Lombok 版本通过 `@Getter` 和 `@AllArgsConstructor` 生成同样的方法，泛型仍然有效。
+- Lombok 不会生成静态工厂方法，`success(...)` 仍需手写。
+- `ErrorCode` 使用 `@Getter`，但保留显式构造方法，避免枚举项与字段的绑定关系被隐藏。
+- Lombok 版本由 Spring Boot `3.4.5` 管理，当前为 `1.18.38`。
+- IDEA 需要启用 Annotation Processing；Maven 编译成功可作为额外验证。
+
+## 十一、ErrorCode 已实现内容
+
+- `INVALID_PARAM(1001, "参数校验失败", HttpStatus.BAD_REQUEST)`
+- `UNAUTHORIZED(1002, "未登录或过期", HttpStatus.UNAUTHORIZED)`
+- `FORBIDDEN(1003, "无权限执行此操作", HttpStatus.FORBIDDEN)`
+- `NOT_FOUND(1004, "请求的资源不存在", HttpStatus.NOT_FOUND)`
+- `CONFLICT(1005, "数据冲突", HttpStatus.CONFLICT)`
+- `INTERNAL_ERROR(5000, "服务器内部错误", HttpStatus.INTERNAL_SERVER_ERROR)`
+
+错误码枚举将业务码、默认消息和 HTTP 状态码绑定在一起，后续由全局异常处理器统一使用。

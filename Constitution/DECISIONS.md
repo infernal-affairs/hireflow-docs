@@ -63,3 +63,11 @@
   - `ApiResponse` 使用普通 Java class、不可变字段、getter 和静态工厂方法。
   - Controller 不直接调用 Mapper；业务规则和事务放在 Service；Entity、DTO、VO 分离。
 - 影响：基础结构更明确，后续表、接口和代码需要遵守这些约定；调整时必须同步更新 Constitution。
+
+## 2026-10-30：正式采用 Lombok
+
+- 背景：需要对比普通 Java class 和 Lombok 注解实现，并确定正式代码的维护方式。
+- 选项：全部手写、全部使用 Lombok、按类型选择性使用 Lombok。
+- 结论：正式引入 Lombok。`ApiResponse` 使用 `@Getter` + `@AllArgsConstructor`；`ErrorCode` 使用 `@Getter`，但保留显式构造方法。
+- 版本：Lombok 不单独写版本，由 Spring Boot `3.4.5` 父 POM 管理，当前为 `1.18.38`。
+- 影响：减少纯数据类样板代码；IDEA 需要启用注解处理。错误码和业务规则等关键逻辑保持显式，不依赖注解隐藏设计。
