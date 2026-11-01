@@ -36,6 +36,7 @@
 - 使用 Controller → Service → Mapper 的经典分层；Controller 不直接调用 Mapper，事务放在 Service。
 - Entity、DTO、VO 分离：Entity 映射数据库，DTO 接收请求，VO 返回前端。
 - 接口统一返回 `{ code, message, data }`，HTTP 状态码采用标准映射。
+- 后端业务接口统一使用 `/api/v1` 前缀；临时验证接口同样放在该前缀下，并在路径中明确标识验证用途。
 - 业务成功码为 `0`；默认成功消息为 `success`；无业务数据时 `data` 为 `null`。
 - `ApiResponse` 使用 Lombok `@Getter` 和 `@AllArgsConstructor`，字段不可变；静态工厂方法仍手写。
 - `ErrorCode` 使用 Lombok `@Getter`，但保留显式构造方法，确保枚举项与字段绑定关系可见。
