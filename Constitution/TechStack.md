@@ -1,14 +1,14 @@
 # HireFlow Tech Stack
 
 > 状态：基线（v1.0）  
-> 最后更新：2026-10-30  
+> 最后更新：2026-11-03
 > 维护规则：技术变更必须先评估影响，确认后同步更新本文和 `DECISIONS.md`。
 
 ## 技术基线
 
 | 层次 | 选择 | 用途与约束 |
 | --- | --- | --- |
-| 语言 | Java 21 LTS（Homebrew Temurin） | 后端主语言；本机已安装 `openjdk@21` |
+| 语言 | Java 21 LTS（本机 Homebrew OpenJDK，不绑定发行版） | 后端主语言；本机已安装 `openjdk@21` |
 | 构建 | Maven 3.9.x | 后端依赖和生命周期管理 |
 | Lombok | 由 Spring Boot 3.4.5 管理（当前 1.18.38） | 编译期生成 getter 和构造方法；减少纯数据类样板代码 |
 | 后端框架 | Spring Boot 3.4.x | REST API、配置和测试基础 |
@@ -36,6 +36,7 @@
 - 使用 Controller → Service → Mapper 的经典分层；Controller 不直接调用 Mapper，事务放在 Service。
 - Entity、DTO、VO 分离：Entity 映射数据库，DTO 接收请求，VO 返回前端。
 - 接口统一返回 `{ code, message, data }`，HTTP 状态码采用标准映射。
+- 路由级 HTTP 错误也进入统一响应：不存在的 URL 使用 `NOT_FOUND/1004/404`，HTTP 方法不匹配使用 `METHOD_NOT_ALLOWED/1006/405`；405 响应保留 `Allow` 响应头。
 - 后端业务接口统一使用 `/api/v1` 前缀；临时验证接口同样放在该前缀下，并在路径中明确标识验证用途。
 - 业务成功码为 `0`；默认成功消息为 `success`；无业务数据时 `data` 为 `null`。
 - `ApiResponse` 使用 Lombok `@Getter` 和 `@AllArgsConstructor`，字段不可变；静态工厂方法仍手写。

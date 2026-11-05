@@ -1,7 +1,7 @@
 # M1：数据库与统一响应基础
 
-- 日期：2026-10-29，补充更新：2026-11-02
-- 状态：异常处理与手工验证已完成；通用 HTTP 错误边界仍待补充
+- 日期：2026-10-29，补充更新：2026-11-03，交接复核：2026-11-05
+- 状态：M1 已完成；统一响应、异常处理、404/405 路由边界和手工验收均已收尾
 - 依据：`Constitution/Mission.md`、`TechStack.md`、`RoadMap.md`
 
 ## 一、本阶段完成内容
@@ -16,6 +16,7 @@
 - 设计并实现后端统一响应类 `ApiResponse<T>`。
 - 使用 Java 21 编译通过。
 - 实现统一异常处理，并用启动后的 HTTP 请求完成主场景验证。
+- 补齐路由级错误：不存在的 URL 返回 404，HTTP 方法不匹配返回 405，并保留 405 的 `Allow` 响应头。
 - 当前阶段暂缓自动化测试，以编译、启动和手工接口验证作为功能推进门槛。
 
 ## 二、数据库表设计
@@ -263,18 +264,18 @@ CURRENT_TIMESTAMP(3)
 11. 静态工厂方法相比直接 `new` 有什么好处？
 12. 为什么 `data = null` 时仍要保留 `data` 字段？
 
-## 七、遗留事项
+## 七、已完成与后续事项
 
-- 通用 HTTP 404/405 边界尚未处理：不存在的 URL 和方法不匹配目前会进入 `Exception` 兜底并返回 500。
+- 通用 HTTP 404/405 边界已处理：不存在的 URL 返回 `1004/404`，方法不匹配返回 `1006/405`，405 保留 `Allow`。
 - 当前异常处理主链路已完成，学习笔记已将本轮知识集中记录在本文件。
 - 当前阶段暂缓自动化测试；后续是否补测需单独决策。
 - MySQL 使用本机账号密码，仓库中不记录真实凭据。
 
 ## 八、相关提交
 
-- backend：`ae40d39`，加入 M1 核心表与 `ApiResponse`。
-- docs：`9038bec`，记录 M1 共识与学习笔记。
-- frontend：本轮无代码变更。
+- backend：`ae40d39` 加入 M1 核心表与 `ApiResponse`；`88a3920` 加入统一异常处理；`f0da42e` 补齐 404/405 路由边界。
+- docs：`9038bec` 记录 M1 共识与学习笔记；`a67468c` 完成异常处理笔记。
+- frontend：M1 无代码变更。
 
 ## 九、代码实现补充记录
 
@@ -299,8 +300,8 @@ CURRENT_TIMESTAMP(3)
 
 ### 本轮提交
 
-- backend：`feat: add unified exception handling`
-- docs：`docs: complete M1 exception handling notes`
+- backend：`feat: add unified exception handling`；后续 `feat: handle HTTP 404 and 405 errors` 补齐路由边界。
+- docs：`docs: complete M1 exception handling notes`；最终收尾提交以 docs 远端为准。
 
 提交哈希以远端仓库为准。
 
@@ -322,11 +323,18 @@ CURRENT_TIMESTAMP(3)
 - `FORBIDDEN(1003, "无权限执行此操作", HttpStatus.FORBIDDEN)`
 - `NOT_FOUND(1004, "请求的资源不存在", HttpStatus.NOT_FOUND)`
 - `CONFLICT(1005, "数据冲突", HttpStatus.CONFLICT)`
+- `METHOD_NOT_ALLOWED(1006, "请求方法不支持", HttpStatus.METHOD_NOT_ALLOWED)`
 - `INTERNAL_ERROR(5000, "服务器内部错误", HttpStatus.INTERNAL_SERVER_ERROR)`
 
 错误码枚举将业务码、默认消息和 HTTP 状态码绑定在一起，后续由全局异常处理器统一使用。`ErrorCode` 的字段带有 Lombok `@Getter`；构造方法仍手写，因此不需要 `@AllArgsConstructor`。
 
-## 十二、统一异常处理与手工验收（2026-11-02 补充）
+注意两个 `METHOD_NOT_ALLOWED` 的类型不同：
+
+- `ErrorCode.METHOD_NOT_ALLOWED` 是 HireFlow 的错误策略对象，提供业务码 `1006`、默认消息和 HTTP 状态。
+- `HttpStatus.METHOD_NOT_ALLOWED` 是 Spring 的 HTTP 标准状态枚举，值对应 405。
+- 前者被放进 JSON，后者决定 HTTP 响应行；名称相同不代表它们是同一个值，也不能互相替换。
+
+## 十二、统一异常处理与手工验收（2026-11-02 至 2026-11-03）
 
 ### 1. 本步目标与依赖边界
 
@@ -415,9 +423,13 @@ public ResponseEntity<ApiResponse<Void>> handleBusinessException(
 | `BusinessException` | `handleBusinessException` | 由 ErrorCode 决定 | 由 ErrorCode 决定 |
 | `MethodArgumentNotValidException` | `handleMethodArgumentNotValidException` | 400 | 1001 |
 | `HttpMessageNotReadableException` | `handleHttpMessageNotReadableException` | 400 | 1001 |
+| `NoResourceFoundException` | `handleNoResourceFoundException` | 404 | 1004 |
+| `HttpRequestMethodNotSupportedException` | `handleHttpRequestMethodNotSupportedException` | 405 | 1006 |
 | 其他 `Exception` | `handleException` | 500 | 5000 |
 
-兜底的 `Exception.class` 不应抢走前面三类异常，因为前面是更具体的匹配。
+兜底的 `Exception.class` 不应抢走前面这些更具体的异常，因为 Spring 会优先匹配更具体的异常类型。两个路由级异常处理器也必须放在兜底之前，否则它们会被当成普通 500。
+
+`HttpStatus` 的数值不是我们随意编的：`HttpStatus.NOT_FOUND` 是 Spring 对标准 HTTP `404 Not Found` 的封装，`HttpStatus.METHOD_NOT_ALLOWED` 对应标准 `405 Method Not Allowed`。我们用枚举名表达意图，而不是在业务代码里散落数字。
 
 ### 5. `ResponseEntity<ApiResponse<Void>>` 到底是什么
 
@@ -452,6 +464,85 @@ return ResponseEntity
 - 返回的类型正是声明中的 `ResponseEntity<ApiResponse<Void>>`。
 
 常见困惑：`ResponseEntity.status(...)` 返回的不是 `void`，它返回一个可以继续调用 `.body(...)` 的构建对象；最终 `.body(...)` 返回的就是 `ResponseEntity<ApiResponse<Void>>`。
+
+`ResponseEntity` 是 Spring 提供的类，不是项目自己定义的：
+
+```java
+import org.springframework.http.ResponseEntity;
+```
+
+它表示“一整个 HTTP 响应”，包含状态码、响应头和响应体。常用的读取方法有：
+
+```java
+response.getStatusCode(); // HTTP 状态，例如 405
+response.getHeaders();    // 响应头，例如 Allow: GET
+response.getBody();       // Java 响应体，例如 ApiResponse 对象
+```
+
+### 5.1 “业务码和 HTTP 状态码”为什么要嵌套三层
+
+先明确：并不是同一个业务码被嵌套了三次，而是三个对象各自负责一件不同的事。
+
+以 `ErrorCode.METHOD_NOT_ALLOWED` 为例：
+
+```text
+ErrorCode.METHOD_NOT_ALLOWED
+├─ 业务码：1006
+├─ 默认消息：请求方法不支持
+└─ HTTP 状态：HttpStatus.METHOD_NOT_ALLOWED（405）
+          ↓ 交给处理器
+ApiResponse<Void>
+└─ JSON 响应体：{"code":1006,"message":"请求方法不支持","data":null}
+          ↓ 放进 ResponseEntity
+ResponseEntity<ApiResponse<Void>>
+├─ HTTP 状态：405
+├─ 响应头：Allow: GET
+└─ 响应体：上面的 ApiResponse
+```
+
+代码中的对应关系：
+
+```java
+ErrorCode errorCode = ErrorCode.METHOD_NOT_ALLOWED;   // 1. 选择错误策略
+String message = errorCode.getMessage();               // 使用默认消息
+ApiResponse<Void> body = ApiResponse.failure(errorCode, message); // 2. 构造 JSON
+return ResponseEntity
+        .status(errorCode.getHttpStatus())             // 3. 设置 HTTP 状态
+        .headers(e.getHeaders())                       //    保留 Allow 等协议头
+        .body(body);                                   //    放入 JSON 响应体
+```
+
+三层各自的职责：
+
+| 层 | 负责什么 | 不负责什么 |
+| --- | --- | --- |
+| `ErrorCode` | 业务码、默认消息、HTTP 状态的集中配置 | 不直接生成 HTTP 响应 |
+| `ApiResponse` | JSON 响应的固定结构 `{code,message,data}` | 不知道 HTTP 状态，也不知道响应头 |
+| `ResponseEntity` | 完整 HTTP 响应的状态、头和体 | 不关心业务码的含义 |
+
+如果不分层，会出现两类常见问题：
+
+1. 每个 Controller 都手写 `status(405)`、业务码和消息，容易改一处漏一处。
+2. 只返回 `ApiResponse`，可能让 Spring 默认使用 200，导致客户端把失败当成成功；或者为了设状态而到处直接返回 `ResponseEntity`，重复业务判断。
+
+因此当前设计的思路是：
+
+```text
+业务错误怎么表达 → ErrorCode
+客户端看到的 JSON 长什么样 → ApiResponse
+HTTP 协议层怎么发送 → ResponseEntity
+```
+
+这不是“越深越高级”，而是把变化点分开。以后新增错误时，通常只需在 `ErrorCode` 增加一个常量，并增加对应的异常映射。
+
+另外，`ErrorCode` 和 `HttpStatus` 的名称可能相同，例如都有 `METHOD_NOT_ALLOWED`，但类型和作用不同：
+
+```java
+ErrorCode.METHOD_NOT_ALLOWED  // HireFlow 错误策略，带 1006 业务码
+HttpStatus.METHOD_NOT_ALLOWED // 标准 HTTP 状态，值为 405
+```
+
+业务码用于让前端或调用方精确定位业务原因；HTTP 状态用于网关、浏览器、监控和通用 HTTP 客户端判断请求结果。两者不能合并成一个数字，否则会丢掉其中一层语义。
 
 ### 6. Bean Validation 与请求 DTO
 
@@ -641,16 +732,34 @@ java.lang.IllegalStateException: 模拟数据库连接失败：敏感内部信�
 
 更准确地说，Bean 实例可以共享，但方法里的局部变量不能跨请求共享；需要请求级数据时应通过参数、返回值或 Spring 的 request scope 显式传递。
 
-### 11. 与通用异常处理器有关的边界
+### 10. 路由级 404/405 边界（2026-11-03 已处理）
 
-本次通过 `@ExceptionHandler(Exception.class)` 统一了未知业务代码抛出的异常，但有两个 Spring MVC 边界还需要后续单独设计：
+本次通过 `@ExceptionHandler(Exception.class)` 统一了未知业务代码抛出的异常。路由级异常也曾经进入兜底并返回 500：
 
-- 访问不存在的 URL 时会触发 `NoResourceFoundException`；当前被兜底为 500，但它本质上应返回 404。
-- 请求方法不匹配时会触发 `HttpRequestMethodNotSupportedException`；当前也被兜底为 500，但它应返回 405。
+- 访问不存在的 URL 会触发 `NoResourceFoundException`，修复后返回 `NOT_FOUND/1004/404`。
+- 请求方法不匹配会触发 `HttpRequestMethodNotSupportedException`，修复后返回 `METHOD_NOT_ALLOWED/1006/405`。
 
-本轮没有擅自新增错误码或进行更大范围异常覆盖。它们已列入 M1 遗留事项，下一轮先设计再实现。
+关键区别：
 
-### 11.1 自定义异常与未知异常的区别
+| 场景 | 请求例子 | 说明 | 修复后 |
+| --- | --- | --- | --- |
+| URL 不存在 | `GET /api/v1/does-not-exist` | 路径没有匹配到资源 | 404 + `1004` |
+| HTTP 方法错误 | `POST /api/v1/health` | 路径存在，但该资源只接受 GET | 405 + `1006` + `Allow: GET` |
+
+不能把两者都笼统处理成“请求不存在”：405 表示“这个 URL 我知道，但你用的方法不对”，客户端可以根据 `Allow` 改用正确的方法。
+
+405 的标准语义要求响应带上允许的方法。Spring 的 `HttpRequestMethodNotSupportedException` 本身提供了 `getHeaders()`，其中包含 `Allow`；处理器把它传给 `ResponseEntity.headers(...)`，避免自定义统一响应时丢掉这个协议头：
+
+```java
+return ResponseEntity
+        .status(errorCode.getHttpStatus())
+        .headers(e.getHeaders())
+        .body(body);
+```
+
+这里的 `e.getHeaders()` 来自 Spring 异常对象，不是 `ErrorCode`。`ErrorCode` 只决定业务码、默认消息和 HTTP 状态；协议头仍由具体异常提供。
+
+### 11. 自定义异常与未知异常的区别
 
 ```java
 // 业务预期失败：保留可展示给用户的具体原因
@@ -675,7 +784,9 @@ ApiResponse.failure(ErrorCode.INTERNAL_ERROR,
 
 因为未知异常的消息可能来自数据库、第三方库或内部路径，直接返回会给攻击者提供信息。
 
-### 12. 实测记录（2026-11-02）
+### 12. 实测记录
+
+#### 12.1 修复前基线（2026-11-02）
 
 执行方式：Java 21 下 `mvn -q compile` 通过，启动 Spring Boot 后用 `curl` 手工请求。
 
@@ -688,8 +799,27 @@ ApiResponse.failure(ErrorCode.INTERNAL_ERROR,
 | 同一接口，非法 JSON | 400 | `{"code":1001,"message":"请求体格式错误","data":null}` | 符合 |
 | `GET /api/v1/exception-demo/unknown` | 500 | `{"code":5000,"message":"服务器内部错误","data":null}` | 符合；服务端有完整堆栈 |
 | 合法 `{"name":"合法名称"}` | 200 | 空响应体 | 符合当前 void 验证接口 |
-| 不存在的 URL | 500 | `{"code":5000,"message":"服务器内部错误","data":null}` | **待改进为 404** |
-| 用 POST 访问仅支持 GET 的健康接口 | 500 | `{"code":5000,"message":"服务器内部错误","data":null}` | **待改进为 405** |
+| 不存在的 URL | 500 | `{"code":5000,"message":"服务器内部错误","data":null}` | **当时代码的旧行为，后续已修复** |
+| 用 POST 访问仅支持 GET 的健康接口 | 500 | `{"code":5000,"message":"服务器内部错误","data":null}` | **当时代码的旧行为，后续已修复** |
+
+上表是修复前的历史基线，不能代表当前代码。
+
+#### 12.2 修复后回归（2026-11-03）
+
+执行方式：Java 21 + Spring Boot 3.4.5 下 `mvn -q compile` 通过，启动后用 `curl` 手工请求；这不是自动化测试。
+
+| 场景 | 实际结果 | 结论 |
+| --- | --- | --- |
+| `GET /api/v1/health` | 200，`code=0` | 通过 |
+| `GET /api/v1/exception-demo/business-default` | 404，`code=1004`，默认消息 | 通过 |
+| `GET /api/v1/exception-demo/business-custom` | 404，`code=1004`，“职位不存在” | 通过 |
+| `POST /api/v1/exception-demo/validation`，`{"name":""}` | 400，`code=1001`，字段消息 | 通过 |
+| 同一接口，`{bad json}` | 400，`code=1001`，“请求体格式错误” | 通过 |
+| `GET /api/v1/exception-demo/unknown` | 500，`code=5000`，服务端记录完整堆栈 | 通过 |
+| 合法 DTO `{"name":"合法名称"}` | 200，空响应体 | 通过（当前验证接口返回 void） |
+| `GET /api/v1/does-not-exist` | 404，`code=1004` | 通过 |
+| `POST /api/v1/health` | 405，`code=1006` | 通过 |
+| 同上，检查响应头 | 包含 `Allow: GET` | 通过 |
 
 注意：这里完成的是编译、启动和手工 HTTP 验证，不是自动化测试通过。当前阶段按宪章暂缓自动化测试。
 
@@ -793,7 +923,10 @@ public static ApiResponse<Void> success()
 12. 为什么 Logger 用 `private static final`？
 13. JSON 反序列化和序列化方向分别是什么？
 14. 为什么 `data: null` 仍然需要出现在响应中？
-15. 当前访问不存在的 URL 为什么返回 500，正确做法应是什么？
+15. 404 和 405 分别在什么情况下出现，为什么不能合并成同一个错误？
+16. 为什么 HTTP 405 响应需要 `Allow` 头？
+17. 为什么业务码和 HTTP 状态码要分层，而不是只保留一个数字？
+18. `ErrorCode`、`ApiResponse`、`ResponseEntity` 各自负责什么？
 
 ### 16. 本步关键修正记录
 
@@ -804,3 +937,6 @@ public static ApiResponse<Void> success()
 | 未知异常可能泄露内部信息 | 响应直接使用 `e.getMessage()` 会暴露敏感文本 | 响应固定使用 `INTERNAL_ERROR` 的安全消息 |
 | 无效 JSON 没有统一 JSON 体 | 之前未覆盖 `HttpMessageNotReadableException` | 增加专属异常处理器 |
 | 未知异常曾走 Spring 默认错误结构 | 之前没有兜底 `Exception` 处理器 | 增加兜底处理器和统一 `ApiResponse` |
+| 不存在的 URL 曾返回 500 | `NoResourceFoundException` 被宽泛兜底 | 增加专用处理器，返回 404/1004 |
+| HTTP 方法错误曾返回 500 | `HttpRequestMethodNotSupportedException` 被宽泛兜底 | 增加专用处理器，返回 405/1006 |
+| 405 缺少 `Allow` | 只设置状态和 body，丢失异常携带的协议头 | 通过 `.headers(e.getHeaders())` 保留 `Allow` |
