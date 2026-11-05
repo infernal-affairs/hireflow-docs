@@ -273,8 +273,8 @@ CURRENT_TIMESTAMP(3)
 
 ## 八、相关提交
 
-- backend：`ae40d39` 加入 M1 核心表与 `ApiResponse`；`88a3920` 加入统一异常处理；`f0da42e` 补齐 404/405 路由边界。
-- docs：`9038bec` 记录 M1 共识与学习笔记；`a67468c` 完成异常处理笔记。
+- backend：`ae40d39` 加入 M1 核心表与 `ApiResponse`；`88a3920` 加入统一异常处理；`f0da42e` 补齐 404/405 路由边界；`4a3f595` 同步 M1 完成状态。
+- docs：`9038bec` 记录 M1 共识与学习笔记；`a67468c` 完成异常处理笔记；`9b1d431` 完成 M1 收尾与 M2 交接。
 - frontend：M1 无代码变更。
 
 ## 九、代码实现补充记录
@@ -300,12 +300,10 @@ CURRENT_TIMESTAMP(3)
 
 ### 本轮提交
 
-- backend：`feat: add unified exception handling`；后续 `feat: handle HTTP 404 and 405 errors` 补齐路由边界。
-- docs：`docs: complete M1 exception handling notes`；最终收尾提交以 docs 远端为准。
+- backend：`feat: add unified exception handling`；后续 `feat: handle HTTP 404 and 405 errors` 补齐路由边界；`docs: align backend status with M1 completion` 同步仓库状态。
+- docs：`docs: complete M1 exception handling notes`；`docs: finalize M1 and prepare M2 handoff` 完成阶段收尾。
 
 提交哈希以远端仓库为准。
-
-
 
 ## 十、Lombok 对比结论
 
